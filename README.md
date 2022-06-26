@@ -41,7 +41,7 @@ Since the relationships are not evenly distributed in the provided data, we try 
 
 ## Future Work
 
-* Would be interesting to test out variations of the six model architectures proposed above, to understand the effect of model performance in response to increasing the (NER) information used during training.
+* Would be interesting to test out variations of the six model architectures described in the paper, to understand the effect of model performance in response to increasing the (NER) information used during training.
 * Would be interesting to try these models out with other popular transformer models such as RoBERTa and ALBERT as well.
 * Some other interesting Relation Extraction Datasets are listed below. Each set has a different mix of relation types vs number of examples, it will be interesting to see how the above models perform against them.
   * [SemEval 2010 Task B](http://www.kozareva.com/downloads.html) -- 10 relation types, 10,717 examples

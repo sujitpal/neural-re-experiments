@@ -29,15 +29,15 @@ All models are trained for 5 wpochs using the AdamW optimizer with learning rate
 
 Since the relationships are not evenly distributed in the provided data, we try to evaluate fairly using the macro F1 score achieved by the trained model against the held out test split. We also measure and record the accuracy score of the model against the test set. We evaluate against BERT, DistilBERT and XLNet. Results are shown below.
 
-| Model                                   | Test Acc   | Macro-F1   | Test Acc     | Macro-F1     | Test Acc   | Macro-F1   | 
-|                                         | (BERT)     | (BERT)     | (DistilBERT) | (DistilBERT) | (XLNet)    | (XLNet)    |
-| --------------------------------------- | ---------- | ---------- | ------------ | ------------ | ---------- | ---------- |
-| (a) Standard - CLS                      | 0.376      | 0.15       | 0.363        | 0.15         | 0.381      | 0.07       |
-| (b) Standard - Mention Pool             | 0.557      | 0.44       | 0.563        | 0.43         | 0.841      | 0.76       |
-| (c) Positional Embedding - Mention Pool | 0.573      | 0.45       | N/A          | N/A          | 0.843      | 0.78       |
-| (d) Entity Markers - CLS                | 0.381      | 0.07       | 0.840        | 0.75         | 0.830      | 0.83       |
-| (e) Entity Markers - Mention Pool       | 0.875      | 0.80       | 0.877        | 0.81         | 0.894      | 0.84       |
-| (f) Entity Markers - Entity Start       | 0.887      | 0.82       | 0.881        | 0.82         | 0.900      | 0.84       |
+| Model                                   | BERT Test Acc | BERT Macro-F1 | DistilBERT Test Acc | DistilBERT Macro-F1 | XLNet Test Acc | XLNet Macro-F1 | 
+| --------------------------------------- | ------------- | ------------- | ------------------- | ------------------- | -------------- | -------------- |
+| (a) Standard - CLS                      | 0.376         | 0.15          | 0.363               | 0.15                | 0.381          | 0.07           |
+| (b) Standard - Mention Pool             | 0.557         | 0.44          | 0.563               | 0.43                | 0.841          | 0.76           |
+| (c) Positional Embedding - Mention Pool | 0.573         | 0.45          | N/A                 | N/A                 | 0.843          | 0.78           |
+| (d) Entity Markers - CLS                | 0.381         | 0.07          | 0.840               | 0.75                | 0.830          | 0.83           |
+| (e) Entity Markers - Mention Pool       | 0.875         | 0.80          | 0.877               | 0.81                | 0.894          | 0.84           |
+| (f) Entity Markers - Entity Start       | 0.887         | 0.82          | 0.881               | 0.82                | 0.900          | 0.84           |
+
 
 ## Future Work
 

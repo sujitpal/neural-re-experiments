@@ -1,17 +1,14 @@
 import argparse
 import json
-from lib2to3.pgen2 import token
 import logging
+from ssl import ALERT_DESCRIPTION_UNRECOGNIZED_NAME
 import matplotlib.pyplot as plt
 import numpy as np
 import os
 import random
-import re
 import shutil
 import torch
-import typing
 
-from datasets import load_dataset, ClassLabel
 from functools import partial
 from torch.utils.data import DataLoader, SubsetRandomSampler
 from torch.optim import AdamW
@@ -25,6 +22,13 @@ from transformers import (
     DataCollatorWithPadding, get_scheduler
 )
 from transformers.modeling_outputs import SequenceClassifierOutput
+
+import dataprep
+import models
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 
 
 def set_random_seed(seed: int) -> None:
@@ -44,67 +48,72 @@ def read_configuration() -> dict:
     return conf
 
 
-def preprocess_text(text: str) -> str:
-    text = text.replace("\n", " ")
-    text = re.sub(r"\s+", " ", text)
-    text = text.strip()
-    return text
+# def preprocess_text(text: str) -> str:
+#     text = text.replace("\n", " ")
+#     text = re.sub(r"\s+", " ", text)
+#     text = text.strip()
+#     return text
 
 
-def reformat_json(infile: str, outfile: str, tokenizer: object) -> None:
-    num_recs = 0
-    fout = open(outfile, "w")
-    with open(infile, "r") as fin:
-        for line in fin:
-            rec = json.loads(line.strip())
-            text = preprocess_text(rec["text"])
-            text_a = " ".join([tokenizer.cls_token, text, tokenizer.sep_token])
-            label = rec["r"]
-            output_rec = { "text": text_a, "label_s": label }
-            fout.write(json.dumps(output_rec) + "\n")
-            num_recs += 1
-    logging.info("preprocessing: {:s} -> {:s} ({:d} records)".format(infile, outfile, num_recs))
+# def reformat_json(infile: str, outfile: str, tokenizer: object) -> None:
+#     num_recs = 0
+#     fout = open(outfile, "w")
+#     with open(infile, "r") as fin:
+#         for line in fin:
+#             rec = json.loads(line.strip())
+#             text = preprocess_text(rec["text"])
+#             text_a = " ".join([tokenizer.cls_token, text, tokenizer.sep_token])
+#             label = rec["r"]
+#             output_rec = { "text": text_a, "label_s": label }
+#             fout.write(json.dumps(output_rec) + "\n")
+#             num_recs += 1
+#     logging.info("preprocessing: {:s} -> {:s} ({:d} records)".format(infile, outfile, num_recs))
 
 
-def build_raw_dataset(conf: dict, tokenizer: object) -> object:
-    prepdir = conf["prep_data_dir"]
-    tempdir = conf["temp_data_dir"]
-    shutil.rmtree(tempdir, ignore_errors=True)
-    os.makedirs(tempdir)
-    splits = ["train", "val", "test"]
-    for split in splits:
-        reformat_json(os.path.join(prepdir, "{:s}.jsonl".format(split)),
-                      os.path.join(tempdir, "{:s}.json".format(split)),
-                      tokenizer)
-    data_files = {split: os.path.join(tempdir, "{:s}.json".format(split)) 
-                  for split in splits}
-    raw_dataset = load_dataset("json", data_files=data_files)
-    return raw_dataset
+# def build_raw_dataset(conf: dict, tokenizer: AutoTokenizer) -> object:
+#     prepdir = conf["prep_data_dir"]
+#     tempdir = conf["temp_data_dir"]
+#     shutil.rmtree(tempdir, ignore_errors=True)
+#     os.makedirs(tempdir)
+#     splits = ["train", "val", "test"]
+#     for split in splits:
+#         prep_fp = os.path.join(prepdir, "{:s}.jsonl".format(split))
+#         temp_fp = os.path.join(tempdir, "{:s}.json".format(split))
+#         num_reformatted = dataprep.reformat_jsonl_file(prep_fp, temp_fp, tokenizer)
+#         logging.info("reformatting {:s} -> {:s} ({:d} records)".format(
+#             prep_fp, temp_fp, num_reformatted))
+
+#     data_files = {split: os.path.join(tempdir, "{:s}.json".format(split)) 
+#                   for split in splits}
+#     raw_dataset = load_dataset("json", data_files=data_files)
+#     return raw_dataset
 
 
-def build_label_mappings(conf: dict) -> tuple:
-    relations = []
-    label_file = os.path.join(conf["prep_data_dir"], "relations.txt")
-    with open(label_file, "r", encoding="utf-8") as frel:
-        for line in frel:
-            relations.append(line.strip())
-    rel_tags = ClassLabel(names=relations)
-    label2id = {name: rel_tags.str2int(name) for name in relations}
-    id2label = {id: rel_tags.int2str(id) for id in range(len(relations))}
-    return label2id, id2label, relations
+# def build_label_mappings(conf: dict) -> tuple:
+#     relations = []
+#     label_file = os.path.join(conf["prep_data_dir"], "relations.txt")
+#     with open(label_file, "r", encoding="utf-8") as frel:
+#         for line in frel:
+#             relations.append(line.strip())
+#     rel_tags = ClassLabel(names=relations)
+#     label2id = {name: rel_tags.str2int(name) for name in relations}
+#     id2label = {id: rel_tags.int2str(id) for id in range(len(relations))}
+#     return label2id, id2label, relations
 
 
-def encode_data(conf: dict, label2id: dict, examples: list) -> object:
-    tokenized_inputs = tokenizer(examples["text"], 
-                                padding=True, truncation=True,
-                                max_length=conf["max_length"])
-    tokenized_inputs["label"] = [label2id[label] for label in examples["label_s"]]
-    return tokenized_inputs
+# def encode_data(conf: dict, label2id: dict, examples: list) -> object:
+#     tokenized_inputs = tokenizer(examples["text"], 
+#                                 padding=True, truncation=True,
+#                                 max_length=conf["max_length"])
+#     tokenized_inputs["label"] = [label2id[label] for label in examples["label_s"]]
+#     return tokenized_inputs
 
 
-def build_encoded_dataset(raw_dataset: object, data_encoder_fn: object) -> object:
+def build_encoded_dataset(raw_dataset: object, 
+                          data_encoder_fn: object,
+                          remove_columns: list = []) -> object:
     enc_dataset = raw_dataset.map(data_encoder_fn, 
-        batched=True, remove_columns=["text", "label_s"])
+        batched=True, remove_columns=remove_columns)
     return enc_dataset
 
 
@@ -204,8 +213,9 @@ def do_eval(model: object, eval_dl: object,
     return eval_loss, eval_score
 
 
-def save_checkpoint(model: object, model_dir: str, epoch: int) -> None:
+def save_checkpoint(model: object, tokenizer: AutoTokenizer, model_dir: str, epoch: int) -> None:
     model.save_pretrained(os.path.join(model_dir, "ckpt-{:d}".format(epoch)))
+    tokenizer.save_pretrained(os.path.join(model_dir, "ckpt-{:d}".format(epoch)))
 
 
 def save_training_history(history: list, model_dir: object, epoch: int) -> None:
@@ -263,27 +273,39 @@ def save_evaluation_artifacts(test_accuracy: float, clf_report: str,
     plt.savefig(os.path.join(model_dir, "confusion_matrix.png"))
 
 
-
-logging.basicConfig(level=logging.INFO)
+################################## main ##################################
 
 set_random_seed(42)
+
 conf = read_configuration()
 
 base_model_name = conf["base_model_name"]
 
 tokenizer = AutoTokenizer.from_pretrained(base_model_name)
-raw_dataset = build_raw_dataset(conf, tokenizer)
-label2id, id2label, relations = build_label_mappings(conf)
 
-data_encoder_fn = partial(encode_data, conf, label2id)
-encoded_dataset = build_encoded_dataset(raw_dataset, data_encoder_fn)
+prep_dir = conf["prep_data_dir"]
+temp_dir = conf["temp_data_dir"]
+raw_dataset = dataprep.build_raw_dataset(
+    prep_dir, temp_dir, tokenizer, tag_type=None)
+
+labels_fp = os.path.join(conf["prep_data_dir"], "relations.txt")
+label2id, id2label, relations = dataprep.build_label_mappings(labels_fp)
+
+# data_encoder_fn = partial(encode_data, conf, label2id)
+data_encoder_fn = partial(dataprep.encode_data, 
+    label2id, tokenizer, conf["max_length"],
+    align_mention_token_ids=False,
+    update_token_type_ids=False)
+encoded_dataset = build_encoded_dataset(
+    raw_dataset, data_encoder_fn,
+    remove_columns=["text", "rel_label", "mention_token_ids"])
 
 train_dl, val_dl, test_dl = build_dataloaders(conf, encoded_dataset, tokenizer)
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-config = AutoConfig.from_pretrained(base_model_name, num_labels=len(relations))
-model = AutoModelForSequenceClassification.from_pretrained(
-    base_model_name, config=config)
+
+model = models.cls_model(
+    base_model_name, num_labels=len(relations), vocab_size=None)
 model = model.to(device)
 
 optimizer = AdamW(model.parameters(), 
@@ -303,9 +325,9 @@ for epoch in range(num_epochs):
     train_loss = do_train(model, train_dl, device, optimizer, lr_scheduler)
     eval_loss, eval_score = do_eval(model, val_dl, device)
     history.append((epoch + 1, train_loss, eval_loss, eval_score))
-    logging.info("EPOCH {:d}, train loss: {:.3f}, val loss: {:.3f}, val-acc: {:.5f}".format(
+    logger.info("EPOCH {:d}, train loss: {:.3f}, val loss: {:.3f}, val-acc: {:.5f}".format(
         epoch + 1, train_loss, eval_loss, eval_score))
-    save_checkpoint(model, model_dir, epoch + 1)
+    save_checkpoint(model, tokenizer, model_dir, epoch + 1)
     save_training_history(history, model_dir, epoch + 1)
 
 save_training_plots(history, model_dir)

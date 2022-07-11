@@ -23,7 +23,7 @@ Following models are trained and evaluated.
 * **Entity Markers - Mention Pooling (model E)** -- The text is pre-procesed to enclose the subject and object entity spans with entity markers `<E1>`, `</E1>`, `<E2>` and `</E2>`. On the output side, the spans (including the entity marker token positions) are maxpooled to create subject and object embeddings, which are then concatenated to produce an input representation for the relation.
 * **Entity Markers - Entity Start (model F)** -- This model is the same as the previous model on the input side, but on the output side, instead of maxpooling across the tokens in the subject and object spans, we concatenate only the states corresponding to the start tokens `<E1>` and `<E2>` to produce the input relation type representation.
 
-All models are trained for 5 wpochs using the AdamW optimizer with learning rate `5e-5` and weight decay of `1e-2`. Batch size varied between 32 (the default) and 16 (for large transformer models) to keep within the GPU memory constraints of Colab.
+All models are trained for 5 epochs using the AdamW optimizer with learning rate `5e-5` and weight decay of `1e-2`. Batch size varied between 32 (the default) and 16 (for large transformer models) to keep within the GPU memory constraints of Colab.
 
 ## Results
 

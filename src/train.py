@@ -44,119 +44,6 @@ def read_configuration() -> dict:
     return conf
 
 
-# def preprocess_text(text: str) -> str:
-#     text = text.replace("\n", " ")
-#     text = re.sub(r"\s+", " ", text)
-#     text = text.strip()
-#     return text
-
-
-# def reformat_json(infile: str, outfile: str, tokenizer: object) -> None:
-#     num_recs = 0
-#     fout = open(outfile, "w")
-#     with open(infile, "r") as fin:
-#         for line in fin:
-#             rec = json.loads(line.strip())
-#             text = preprocess_text(rec["text"])
-#             text_a = " ".join([tokenizer.cls_token, text, tokenizer.sep_token])
-#             label = rec["r"]
-#             output_rec = { "text": text_a, "label_s": label }
-#             fout.write(json.dumps(output_rec) + "\n")
-#             num_recs += 1
-#     logging.info("preprocessing: {:s} -> {:s} ({:d} records)".format(infile, outfile, num_recs))
-
-
-# def build_raw_dataset(conf: dict, tokenizer: AutoTokenizer) -> object:
-#     prepdir = conf["prep_data_dir"]
-#     tempdir = conf["temp_data_dir"]
-#     shutil.rmtree(tempdir, ignore_errors=True)
-#     os.makedirs(tempdir)
-#     splits = ["train", "val", "test"]
-#     for split in splits:
-#         prep_fp = os.path.join(prepdir, "{:s}.jsonl".format(split))
-#         temp_fp = os.path.join(tempdir, "{:s}.json".format(split))
-#         num_reformatted = dataprep.reformat_jsonl_file(prep_fp, temp_fp, tokenizer)
-#         logging.info("reformatting {:s} -> {:s} ({:d} records)".format(
-#             prep_fp, temp_fp, num_reformatted))
-
-#     data_files = {split: os.path.join(tempdir, "{:s}.json".format(split)) 
-#                   for split in splits}
-#     raw_dataset = load_dataset("json", data_files=data_files)
-#     return raw_dataset
-
-
-# def build_label_mappings(conf: dict) -> tuple:
-#     relations = []
-#     label_file = os.path.join(conf["prep_data_dir"], "relations.txt")
-#     with open(label_file, "r", encoding="utf-8") as frel:
-#         for line in frel:
-#             relations.append(line.strip())
-#     rel_tags = ClassLabel(names=relations)
-#     label2id = {name: rel_tags.str2int(name) for name in relations}
-#     id2label = {id: rel_tags.int2str(id) for id in range(len(relations))}
-#     return label2id, id2label, relations
-
-
-# def encode_data(conf: dict, label2id: dict, examples: list) -> object:
-#     tokenized_inputs = tokenizer(examples["text"], 
-#                                 padding=True, truncation=True,
-#                                 max_length=conf["max_length"])
-#     tokenized_inputs["label"] = [label2id[label] for label in examples["label_s"]]
-#     return tokenized_inputs
-
-
-# def build_encoded_dataset(raw_dataset: object, 
-#                           data_encoder_fn: object,
-#                           remove_columns: list = []) -> object:
-#     enc_dataset = raw_dataset.map(data_encoder_fn, 
-#         batched=True, remove_columns=remove_columns)
-#     return enc_dataset
-
-
-# def build_dataloaders(conf: dict, encoded_dataset: object,
-#                       tokenizer: object) -> tuple:
-#     collate_fn = DataCollatorWithPadding(tokenizer, padding="longest", 
-#                                          return_tensors="pt")
-#     batch_size = conf["batch_size"]
-#     if conf["test_mode"] == "true":
-#         train_dl = DataLoader(encoded_dataset["train"],
-#                               sampler=SubsetRandomSampler(
-#                                   np.random.randint(
-#                                     0, encoded_dataset["train"].num_rows, 
-#                                     1000).tolist()),
-#                               batch_size=batch_size, 
-#                               collate_fn=collate_fn)
-#         val_dl = DataLoader(encoded_dataset["val"], 
-#                             sampler=SubsetRandomSampler(
-#                                 np.random.randint(
-#                                     0, encoded_dataset["val"].num_rows,
-#                                     200).tolist()),
-#                             batch_size=batch_size, 
-#                             collate_fn=collate_fn)
-#         test_dl = DataLoader(encoded_dataset["test"], 
-#                              sampler=SubsetRandomSampler(
-#                                 np.random.randint(
-#                                     0, encoded_dataset["test"].num_rows, 
-#                                     100).tolist()),
-#                              batch_size=batch_size, 
-#                              collate_fn=collate_fn)
-#     else:
-#         train_dl = DataLoader(encoded_dataset["train"],
-#                               shuffle=True,
-#                               batch_size=batch_size, 
-#                               collate_fn=collate_fn)
-#         val_dl = DataLoader(encoded_dataset["val"], 
-#                             shuffle=False,
-#                             batch_size=batch_size, 
-#                             collate_fn=collate_fn)
-#         test_dl = DataLoader(encoded_dataset["test"], 
-#                              shuffle=False,
-#                              batch_size=batch_size, 
-#                              collate_fn=collate_fn)
-
-#     return train_dl, val_dl, test_dl
-
-
 def create_model_dir(conf: dict) -> str:
     model_dir = os.path.join(conf["model_data_dir"], conf["target_model_name"])
     if os.path.exists(model_dir):
@@ -279,77 +166,78 @@ def save_evaluation_artifacts(test_accuracy: float,
 
 ################################## main ##################################
 
-set_random_seed(42)
+if __name__ == "__main__":
+    set_random_seed(42)
 
-conf = read_configuration()
+    conf = read_configuration()
 
-base_model_name = conf["base_model_name"]
+    base_model_name = conf["base_model_name"]
 
-tokenizer = AutoTokenizer.from_pretrained(base_model_name)
+    tokenizer = AutoTokenizer.from_pretrained(base_model_name)
 
-prep_dir = conf["prep_data_dir"]
-temp_dir = conf["temp_data_dir"]
-input_pattern_props = dataprep.DATAPREP_FACTORY[conf["input_pattern"]]
+    prep_dir = conf["prep_data_dir"]
+    temp_dir = conf["temp_data_dir"]
+    input_pattern_props = dataprep.DATAPREP_FACTORY[conf["input_pattern"]]
 
-raw_dataset = dataprep.build_raw_dataset(
-    prep_dir, temp_dir, tokenizer,
-    tag_type=input_pattern_props["tag_type"])
+    raw_dataset = dataprep.build_raw_dataset(
+        prep_dir, temp_dir, tokenizer,
+        tag_type=input_pattern_props["tag_type"])
 
-labels_fp = os.path.join(conf["prep_data_dir"], "relations.txt")
-label2id, id2label, relations = dataprep.build_label_mappings(labels_fp)
+    labels_fp = os.path.join(conf["prep_data_dir"], "relations.txt")
+    label2id, id2label, relations = dataprep.build_label_mappings(labels_fp)
 
-data_encoder_fn = partial(dataprep.encode_data, 
-    label2id=label2id, tokenizer=tokenizer,
-    max_length=conf["max_length"],
-    align_mention_token_ids=conf["align_mention_token_ids"],
-    update_token_type_ids=conf["update_token_type_ids"])
-enc_dataset = raw_dataset.map(
-    data_encoder_fn, batched=True,
-    remove_columns=input_pattern_props["remove_columns"])
+    data_encoder_fn = partial(dataprep.encode_data, 
+        label2id=label2id, tokenizer=tokenizer,
+        max_length=conf["max_length"],
+        align_mention_token_ids=input_pattern_props["align_mention_token_ids"],
+        update_token_type_ids=input_pattern_props["update_token_type_ids"])
+    enc_dataset = raw_dataset.map(
+        data_encoder_fn, batched=True,
+        remove_columns=input_pattern_props["remove_columns"])
 
-train_dl, val_dl, test_dl = dataprep.build_dataloaders(
-    enc_dataset, tokenizer, conf["batch_size"], conf["test_mode"])
+    train_dl, val_dl, test_dl = dataprep.build_dataloaders(
+        enc_dataset, tokenizer, conf["batch_size"], conf["test_mode"])
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model_fn = models.MODEL_FACTORY[conf["model_pattern"]]
-model = model_fn(base_model_name, num_labels=len(relations), vocab_size=None)
-model = model.to(device)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model_fn = models.MODEL_FACTORY[conf["model_pattern"]]
+    model = model_fn(base_model_name, num_labels=len(relations), vocab_size=None)
+    model = model.to(device)
 
-optimizer = AdamW(model.parameters(), 
-                 lr=conf["learning_rate"],
-                 weight_decay=conf["weight_decay"])
+    optimizer = AdamW(model.parameters(), 
+                    lr=conf["learning_rate"],
+                    weight_decay=conf["weight_decay"])
 
-num_epochs = 1 if conf["test_mode"] == "true" else conf["num_epochs"]
-num_training_steps = num_epochs * len(train_dl)
-lr_scheduler = get_scheduler("linear",
-                             optimizer=optimizer,
-                             num_warmup_steps=0,
-                             num_training_steps=num_training_steps)
+    num_epochs = 1 if conf["test_mode"] == "true" else conf["num_epochs"]
+    num_training_steps = num_epochs * len(train_dl)
+    lr_scheduler = get_scheduler("linear",
+                                optimizer=optimizer,
+                                num_warmup_steps=0,
+                                num_training_steps=num_training_steps)
 
-model_dir = create_model_dir(conf)
-history = []
-for epoch in range(num_epochs):
-    train_loss = do_train(model, train_dl, device, optimizer, lr_scheduler)
-    eval_loss, eval_score = do_eval(model, val_dl, device)
-    history.append((epoch + 1, train_loss, eval_loss, eval_score))
-    logger.info("EPOCH {:d}, train loss: {:.3f}, val loss: {:.3f}, val-acc: {:.5f}".format(
-        epoch + 1, train_loss, eval_loss, eval_score))
-    save_checkpoint(model, tokenizer, model_dir, epoch + 1)
+    model_dir = create_model_dir(conf)
+    history = []
+    for epoch in range(num_epochs):
+        train_loss = do_train(model, train_dl, device, optimizer, lr_scheduler)
+        eval_loss, eval_score = do_eval(model, val_dl, device)
+        history.append((epoch + 1, train_loss, eval_loss, eval_score))
+        logger.info("EPOCH {:d}, train loss: {:.3f}, val loss: {:.3f}, val-acc: {:.5f}".format(
+            epoch + 1, train_loss, eval_loss, eval_score))
+        save_checkpoint(model, tokenizer, model_dir, epoch + 1)
 
-save_training_history(history, model_dir)
-save_training_plots(history, model_dir)
+    save_training_history(history, model_dir)
+    save_training_plots(history, model_dir)
 
-# evaluation
-ytrue, ypred = generate_labels_and_predictions(model, test_dl)
+    # evaluation
+    ytrue, ypred = generate_labels_and_predictions(model, test_dl)
 
-test_accuracy = accuracy_score(ytrue, ypred)
-print("test accuracy: {:.3f}".format(test_accuracy))
+    test_accuracy = accuracy_score(ytrue, ypred)
+    print("test accuracy: {:.3f}".format(test_accuracy))
 
-clf_report = classification_report(ytrue, ypred, target_names=relations)
-print(clf_report)
+    clf_report = classification_report(ytrue, ypred, target_names=relations)
+    print(clf_report)
 
-conf_matrix = confusion_matrix(ytrue, ypred, normalize="true")
-print(conf_matrix)
+    conf_matrix = confusion_matrix(ytrue, ypred, normalize="true")
+    print(conf_matrix)
 
-save_evaluation_artifacts(test_accuracy, clf_report, conf_matrix, 
-                          relations, model_dir)
+    save_evaluation_artifacts(test_accuracy, clf_report, conf_matrix, 
+                            relations, model_dir)

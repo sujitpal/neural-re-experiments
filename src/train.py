@@ -1,7 +1,6 @@
 import argparse
 import json
 import logging
-from ssl import ALERT_DESCRIPTION_UNRECOGNIZED_NAME
 import matplotlib.pyplot as plt
 import numpy as np
 import os
@@ -10,17 +9,14 @@ import shutil
 import torch
 
 from functools import partial
-from torch.utils.data import DataLoader, SubsetRandomSampler
 from torch.optim import AdamW
 
 from sklearn.metrics import (
     ConfusionMatrixDisplay, confusion_matrix, 
     classification_report, accuracy_score
 )
-from transformers import (
-    AutoConfig, AutoTokenizer, AutoModelForSequenceClassification,
-    DataCollatorWithPadding, get_scheduler
-)
+from torch.utils.data import DataLoader
+from transformers import AutoTokenizer, get_scheduler
 from transformers.modeling_outputs import SequenceClassifierOutput
 
 import dataprep
@@ -109,56 +105,56 @@ def read_configuration() -> dict:
 #     return tokenized_inputs
 
 
-def build_encoded_dataset(raw_dataset: object, 
-                          data_encoder_fn: object,
-                          remove_columns: list = []) -> object:
-    enc_dataset = raw_dataset.map(data_encoder_fn, 
-        batched=True, remove_columns=remove_columns)
-    return enc_dataset
+# def build_encoded_dataset(raw_dataset: object, 
+#                           data_encoder_fn: object,
+#                           remove_columns: list = []) -> object:
+#     enc_dataset = raw_dataset.map(data_encoder_fn, 
+#         batched=True, remove_columns=remove_columns)
+#     return enc_dataset
 
 
-def build_dataloaders(conf: dict, encoded_dataset: object,
-                      tokenizer: object) -> tuple:
-    collate_fn = DataCollatorWithPadding(tokenizer, padding="longest", 
-                                         return_tensors="pt")
-    batch_size = conf["batch_size"]
-    if conf["test_mode"] == "true":
-        train_dl = DataLoader(encoded_dataset["train"],
-                              sampler=SubsetRandomSampler(
-                                  np.random.randint(
-                                    0, encoded_dataset["train"].num_rows, 
-                                    1000).tolist()),
-                              batch_size=batch_size, 
-                              collate_fn=collate_fn)
-        val_dl = DataLoader(encoded_dataset["val"], 
-                            sampler=SubsetRandomSampler(
-                                np.random.randint(
-                                    0, encoded_dataset["val"].num_rows,
-                                    200).tolist()),
-                            batch_size=batch_size, 
-                            collate_fn=collate_fn)
-        test_dl = DataLoader(encoded_dataset["test"], 
-                             sampler=SubsetRandomSampler(
-                                np.random.randint(
-                                    0, encoded_dataset["test"].num_rows, 
-                                    100).tolist()),
-                             batch_size=batch_size, 
-                             collate_fn=collate_fn)
-    else:
-        train_dl = DataLoader(encoded_dataset["train"],
-                              shuffle=True,
-                              batch_size=batch_size, 
-                              collate_fn=collate_fn)
-        val_dl = DataLoader(encoded_dataset["val"], 
-                            shuffle=False,
-                            batch_size=batch_size, 
-                            collate_fn=collate_fn)
-        test_dl = DataLoader(encoded_dataset["test"], 
-                             shuffle=False,
-                             batch_size=batch_size, 
-                             collate_fn=collate_fn)
+# def build_dataloaders(conf: dict, encoded_dataset: object,
+#                       tokenizer: object) -> tuple:
+#     collate_fn = DataCollatorWithPadding(tokenizer, padding="longest", 
+#                                          return_tensors="pt")
+#     batch_size = conf["batch_size"]
+#     if conf["test_mode"] == "true":
+#         train_dl = DataLoader(encoded_dataset["train"],
+#                               sampler=SubsetRandomSampler(
+#                                   np.random.randint(
+#                                     0, encoded_dataset["train"].num_rows, 
+#                                     1000).tolist()),
+#                               batch_size=batch_size, 
+#                               collate_fn=collate_fn)
+#         val_dl = DataLoader(encoded_dataset["val"], 
+#                             sampler=SubsetRandomSampler(
+#                                 np.random.randint(
+#                                     0, encoded_dataset["val"].num_rows,
+#                                     200).tolist()),
+#                             batch_size=batch_size, 
+#                             collate_fn=collate_fn)
+#         test_dl = DataLoader(encoded_dataset["test"], 
+#                              sampler=SubsetRandomSampler(
+#                                 np.random.randint(
+#                                     0, encoded_dataset["test"].num_rows, 
+#                                     100).tolist()),
+#                              batch_size=batch_size, 
+#                              collate_fn=collate_fn)
+#     else:
+#         train_dl = DataLoader(encoded_dataset["train"],
+#                               shuffle=True,
+#                               batch_size=batch_size, 
+#                               collate_fn=collate_fn)
+#         val_dl = DataLoader(encoded_dataset["val"], 
+#                             shuffle=False,
+#                             batch_size=batch_size, 
+#                             collate_fn=collate_fn)
+#         test_dl = DataLoader(encoded_dataset["test"], 
+#                              shuffle=False,
+#                              batch_size=batch_size, 
+#                              collate_fn=collate_fn)
 
-    return train_dl, val_dl, test_dl
+#     return train_dl, val_dl, test_dl
 
 
 def create_model_dir(conf: dict) -> str:
@@ -175,8 +171,10 @@ def compute_accuracy(labels: list, logits: list) -> float:
     return accuracy_score(labels_cpu, preds_cpu)
 
 
-def do_train(model: object, train_dl: object,
-             device: object, optimizer: object, 
+def do_train(model: object,
+             train_dl: DataLoader,
+             device: torch.cuda.device,
+             optimizer: torch.optim.Optimizer, 
              lr_scheduler: object) -> float:
     train_loss = 0
     model.train()
@@ -194,8 +192,9 @@ def do_train(model: object, train_dl: object,
     return train_loss
 
 
-def do_eval(model: object, eval_dl: object, 
-            device: object) -> tuple:
+def do_eval(model: object,
+            eval_dl: DataLoader, 
+            device: torch.cuda.device) -> tuple:
     model.eval()
     eval_loss, eval_score, num_batches = 0, 0, 0
     for bid, batch in enumerate(eval_dl):
@@ -213,12 +212,15 @@ def do_eval(model: object, eval_dl: object,
     return eval_loss, eval_score
 
 
-def save_checkpoint(model: object, tokenizer: AutoTokenizer, model_dir: str, epoch: int) -> None:
+def save_checkpoint(model: object,
+                    tokenizer: AutoTokenizer,
+                    model_dir: str,
+                    epoch: int) -> None:
     model.save_pretrained(os.path.join(model_dir, "ckpt-{:d}".format(epoch)))
     tokenizer.save_pretrained(os.path.join(model_dir, "ckpt-{:d}".format(epoch)))
 
 
-def save_training_history(history: list, model_dir: object, epoch: int) -> None:
+def save_training_history(history: list, model_dir: object) -> None:
     fhist = open(os.path.join(model_dir, "history.tsv"), "w")
     for epoch, train_loss, eval_loss, eval_score in history:
         fhist.write("{:d}\t{:.5f}\t{:.5f}\t{:.5f}\n".format(
@@ -258,14 +260,16 @@ def generate_labels_and_predictions(model: object, test_dl: object) -> tuple:
     return ytrue, ypred
 
 
-def save_evaluation_artifacts(test_accuracy: float, clf_report: str, 
-                              conf_matrix: object, relations: list,
+def save_evaluation_artifacts(test_accuracy: float,
+                              clf_report: str, 
+                              conf_matrix: object,
+                              relations: list,
                               model_dir: str) -> None:
     with open(os.path.join(model_dir, "eval-report.txt"), "w", encoding="utf-8") as fout:
         fout.write("** test accuracy: {:.3f}\n\n".format(test_accuracy))
         fout.write("** classification report\n")
         fout.write(clf_report + "\n")
-    fig, ax = plt.subplots(figsize=(12, 12))
+    _, ax = plt.subplots(figsize=(12, 12))
     disp = ConfusionMatrixDisplay(
         confusion_matrix=conf_matrix, display_labels=relations)
     disp.plot(cmap="Blues", values_format="0.2f", ax=ax, colorbar=False)
@@ -285,27 +289,30 @@ tokenizer = AutoTokenizer.from_pretrained(base_model_name)
 
 prep_dir = conf["prep_data_dir"]
 temp_dir = conf["temp_data_dir"]
+input_pattern_props = dataprep.DATAPREP_FACTORY[conf["input_pattern"]]
+
 raw_dataset = dataprep.build_raw_dataset(
-    prep_dir, temp_dir, tokenizer, tag_type=None)
+    prep_dir, temp_dir, tokenizer,
+    tag_type=input_pattern_props["tag_type"])
 
 labels_fp = os.path.join(conf["prep_data_dir"], "relations.txt")
 label2id, id2label, relations = dataprep.build_label_mappings(labels_fp)
 
-# data_encoder_fn = partial(encode_data, conf, label2id)
 data_encoder_fn = partial(dataprep.encode_data, 
-    label2id, tokenizer, conf["max_length"],
-    align_mention_token_ids=False,
-    update_token_type_ids=False)
-encoded_dataset = build_encoded_dataset(
-    raw_dataset, data_encoder_fn,
-    remove_columns=["text", "rel_label", "mention_token_ids"])
+    label2id=label2id, tokenizer=tokenizer,
+    max_length=conf["max_length"],
+    align_mention_token_ids=conf["align_mention_token_ids"],
+    update_token_type_ids=conf["update_token_type_ids"])
+enc_dataset = raw_dataset.map(
+    data_encoder_fn, batched=True,
+    remove_columns=input_pattern_props["remove_columns"])
 
-train_dl, val_dl, test_dl = build_dataloaders(conf, encoded_dataset, tokenizer)
+train_dl, val_dl, test_dl = dataprep.build_dataloaders(
+    enc_dataset, tokenizer, conf["batch_size"], conf["test_mode"])
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-model = models.cls_model(
-    base_model_name, num_labels=len(relations), vocab_size=None)
+model_fn = models.MODEL_FACTORY[conf["model_pattern"]]
+model = model_fn(base_model_name, num_labels=len(relations), vocab_size=None)
 model = model.to(device)
 
 optimizer = AdamW(model.parameters(), 
@@ -328,8 +335,8 @@ for epoch in range(num_epochs):
     logger.info("EPOCH {:d}, train loss: {:.3f}, val loss: {:.3f}, val-acc: {:.5f}".format(
         epoch + 1, train_loss, eval_loss, eval_score))
     save_checkpoint(model, tokenizer, model_dir, epoch + 1)
-    save_training_history(history, model_dir, epoch + 1)
 
+save_training_history(history, model_dir)
 save_training_plots(history, model_dir)
 
 # evaluation

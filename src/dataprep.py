@@ -6,8 +6,9 @@ import os
 import re
 import shutil
 
-from transformers import AutoTokenizer
 from datasets import ClassLabel, DatasetDict, load_dataset
+from torch.utils.data import DataLoader, SubsetRandomSampler
+from transformers import AutoTokenizer, DataCollatorWithPadding
 
 
 logging.basicConfig(level=logging.INFO)
@@ -183,3 +184,64 @@ def encode_data(examples: list,
             tokenized_inputs["token_type_ids"] = updated_token_type_ids
 
     return tokenized_inputs
+
+
+DATAPREP_FACTORY = {
+    "standard": {
+        "tag_type": None,
+        "align_mention_token_ids": False,
+        "update_token_type_ids": False,
+        "remove_columns": ["text", "rel_label", "mention_token_ids"]
+    },
+    "positional_embedding": {
+        "tag_type": None,
+        "align_mention_token_ids": False,
+        "update_token_type_ids": False,
+        "remove_columns": ["text", "rel_label", "mention_token_ids"]
+    },
+    "entity_marker": {
+        "tag_type": None,
+        "align_mention_token_ids": False,
+        "update_token_type_ids": False,
+        "remove_columns": ["text", "rel_label", "mention_token_ids"]
+    },
+    "entity_type_marker": {
+        "tag_type": None,
+        "align_mention_token_ids": False,
+        "update_token_type_ids": False,
+        "remove_columns": ["text", "rel_label", "mention_token_ids"]
+    }
+}
+
+
+def build_dataloader_for_split(enc_dataset: DatasetDict, 
+                      tokenizer: AutoTokenizer,
+                      split: str,
+                      batch_size: int,
+                      test_mode: bool) -> DataLoader:
+    collate_fn = DataCollatorWithPadding(tokenizer, padding="longest", 
+                                         return_tensors="pt")
+    if test_mode:
+        sampler = SubsetRandomSampler(
+            np.random.randint(0, enc_dataset[split].num_rows, 1000).tolist())
+        return DataLoader(enc_dataset[split],
+                          batch_size=batch_size, 
+                          sampler=sampler, 
+                          collate_fn=collate_fn)
+    else:
+        return DataLoader(enc_dataset[split],
+                          batch_size=batch_size, 
+                          shuffle=True, 
+                          collate_fn=collate_fn)
+
+
+def build_dataloaders(enc_dataset: DatasetDict, 
+                      tokenizer: AutoTokenizer,
+                      batch_size: int,
+                      test_mode: str = "false") -> tuple:
+    dataloaders = []
+    for split in ["train", "val", "test"]:
+        dataloaders.append(
+            build_dataloader_for_split(enc_dataset, tokenizer, split, 
+                                       batch_size, test_mode == "true"))
+    return dataloaders

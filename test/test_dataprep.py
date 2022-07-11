@@ -2,6 +2,7 @@
 import os
 import unittest
 
+from functools import partial
 from transformers import AutoTokenizer
 
 from src.dataprep import *
@@ -123,3 +124,63 @@ class TestDataPrep(unittest.TestCase):
         self.assertTrue("attention_mask" in tokenized_inputs.keys())
         self.assertTrue("label" in tokenized_inputs.keys())
         self.assertTrue("mention_token_ids" in tokenized_inputs.keys())
+
+    def test_create_encoded_dataset(self):
+        prep_dir = "data/prepared"
+        temp_dir = "data/temp"
+        raw_dataset = build_raw_dataset(
+            prep_dir, temp_dir, TestDataPrep.tokenizer, tag_type="entity")
+        label2id, id2label, relations = build_label_mappings(TestDataPrep.label_fp)
+
+        data_encoder_fn = partial(encode_data, 
+            label2id=label2id, 
+            tokenizer=TestDataPrep.tokenizer,
+            max_length=400,
+            align_mention_token_ids=False,
+            update_token_type_ids=False)
+        enc_dataset = raw_dataset.map(
+            data_encoder_fn, batched=True,
+            remove_columns=["text", "rel_label", "mention_token_ids"])
+        self.assertIsInstance(enc_dataset, DatasetDict)
+        self.assertEqual(len(enc_dataset.keys()), 3)
+        self.assertEquals(len(enc_dataset["train"].features.keys()), 4)
+        self.assertTrue("attention_mask" in enc_dataset["train"].features.keys())
+        self.assertTrue("input_ids" in enc_dataset["train"].features.keys())
+        self.assertTrue("token_type_ids" in enc_dataset["train"].features.keys())
+        self.assertTrue("label" in enc_dataset["train"].features.keys())
+
+    def test_dataprep_factory(self):
+        for input_pattern in ["standard", "positional_embedding", "entity_marker", "entity_type_marker"]:
+            pattern_props = DATAPREP_FACTORY[input_pattern]
+            self.assertIsNotNone(pattern_props)
+            self.assertIsInstance(pattern_props, dict)
+
+    def test_create_and_run_dataloader(self):
+        prep_dir = "data/prepared"
+        temp_dir = "data/temp"
+        raw_dataset = build_raw_dataset(
+            prep_dir, temp_dir, TestDataPrep.tokenizer, tag_type="entity")
+        label2id, id2label, relations = build_label_mappings(TestDataPrep.label_fp)
+
+        data_encoder_fn = partial(encode_data, 
+            label2id=label2id, 
+            tokenizer=TestDataPrep.tokenizer,
+            max_length=400,
+            align_mention_token_ids=False,
+            update_token_type_ids=False)
+        enc_dataset = raw_dataset.map(
+            data_encoder_fn, batched=True,
+            remove_columns=["text", "rel_label", "mention_token_ids"])
+
+        train_dl = build_dataloader_for_split(
+            enc_dataset, TestDataPrep.tokenizer, "train", 
+            batch_size=32, test_mode=True)
+        self.assertIsNotNone(train_dl)
+        self.assertIsInstance(train_dl, DataLoader)
+
+        for batch in train_dl:
+            self.assertEqual(batch["attention_mask"].cpu().detach().numpy().shape, (32, 400))
+            self.assertEqual(batch["input_ids"].cpu().detach().numpy().shape, (32, 400))
+            self.assertEqual(batch["token_type_ids"].cpu().detach().numpy().shape, (32, 400))
+            self.assertEqual(batch["labels"].cpu().detach().numpy().shape, (32,))
+            break

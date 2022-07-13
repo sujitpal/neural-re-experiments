@@ -54,10 +54,11 @@ class MentionPoolingForRelationExtraction(nn.Module):
 
         sub_maxpool, obj_maxpool = [], []
         for bid in range(outputs.size(0)):
-            e1_start, e1_end, e2_start, e2_end = mention_token_ids[bid]
-            sub_span = torch.max(outputs[bid, e1_start:e1_end, :],
+            e1_start, e1_end, e2_start, e2_end = [t.item() for t in mention_token_ids[bid]]
+            print(e1_start, e1_end, e2_start, e2_end)
+            sub_span = torch.max(outputs[bid, e1_start:e1_end + 1, :],
                                  dim=0, keepdim=True).values
-            obj_span = torch.max(outputs[bid, e2_start:e2_end, :],
+            obj_span = torch.max(outputs[bid, e2_start:e2_end + 1, :],
                                  dim=0, keepdim=True).values
             sub_maxpool.append(sub_span)
             obj_maxpool.append(obj_span)

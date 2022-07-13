@@ -44,25 +44,46 @@ class TestModels(unittest.TestCase):
             batch_size=TestModels.batch_size, test_mode=TestModels.test_mode)
         return train_dl
 
+    # def test_get_and_run_standard_cls_model(self):
+    #     model = cls_model("bert-base-cased", TestModels.num_classes, None)
+    #     self.assertIsNotNone(model)
+    #     if torch.cuda.is_available():
+    #         device = torch.device("cuda")
+    #         model = model.to(device)
+    #         # test with standard input
+    #         train_dl = self._build_dataset_for_task(
+    #             None, False, False, ["text", "rel_label", "mention_token_ids"])
+    #         for batch in train_dl:
+    #             batch = {k: v.to(device) for k, v in batch.items()}
+    #             outputs = model(**batch)
+    #             break
+    #         self.assertIsNotNone(outputs)
+    #         self.assertIsInstance(outputs, SequenceClassifierOutput)
+    #         self.assertEqual(len(outputs.keys()), 2)
+    #         self.assertTrue("loss" in outputs.keys())
+    #         self.assertTrue("logits" in outputs.keys())
+    #         self.assertIsInstance(outputs.loss.detach().cpu().numpy().item(), float)
+    #         self.assertEqual(outputs.logits.detach().cpu().numpy().shape, 
+    #             (TestModels.batch_size, TestModels.num_classes))
 
-    def test_get_and_run_cls_model(self):
-        model = cls_model("bert-base-cased", 8, None)
+    def test_get_and_run_standard_mention_pooling_model(self):
+        model = mention_pooling_model("bert-base-cased", TestModels.num_classes, None)
         self.assertIsNotNone(model)
-        if torch.cuda.is_available():
-            device = torch.device("cuda")
-            model = model.to(device)
-            # test with standard input
-            train_dl = self._build_dataset_for_task(
-                None, False, False, ["text", "rel_label", "mention_token_ids"])
-            for batch in train_dl:
-                batch = {k: v.to(device) for k, v in batch.items()}
-                outputs = model(**batch)
-                break
-            self.assertIsNotNone(outputs)
-            self.assertIsInstance(outputs, SequenceClassifierOutput)
-            self.assertEqual(len(outputs.keys()), 2)
-            self.assertTrue("loss" in outputs.keys())
-            self.assertTrue("logits" in outputs.keys())
-            self.assertIsInstance(outputs.loss.detach().cpu().numpy().item(), float)
-            self.assertEqual(outputs.logits.detach().cpu().numpy().shape, 
-                (TestModels.batch_size, TestModels.num_classes))
+        self.assertIsInstance(model, nn.Module)
+
+        train_dl = self._build_dataset_for_task(
+            None, False, False, ["text", "rel_label"])
+        for batch in train_dl:
+            # batch = {k: v.to(device) for k, v in batch.items()}
+            outputs = model(**batch)
+            break
+        self.assertIsNotNone(outputs)
+        self.assertIsInstance(outputs, SequenceClassifierOutput)
+        self.assertEqual(len(outputs.keys()), 2)
+        self.assertTrue("loss" in outputs.keys())
+        self.assertTrue("logits" in outputs.keys())
+        self.assertIsInstance(outputs.loss.detach().cpu().numpy().item(), float)
+        self.assertEqual(outputs.logits.detach().cpu().numpy().shape, 
+            (TestModels.batch_size, TestModels.num_classes))
+
+        

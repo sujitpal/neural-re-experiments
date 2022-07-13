@@ -93,7 +93,8 @@ class TestDataPrep(unittest.TestCase):
         label2id, id2label, relations = build_label_mappings(TestDataPrep.prep_dir)
         tokenized_inputs = encode_data(
             examples, label2id, TestDataPrep.tokenizer, TestDataPrep.max_length,
-            tag_type=None, do_position_embedding=False)
+            tags_added_to_text=None, mention_token_ids_src=None, 
+            position_embedding=False)
         self.assertEqual(len(tokenized_inputs.keys()), 4)
         self.assertTrue("input_ids" in tokenized_inputs.keys())
         self.assertTrue("token_type_ids" in tokenized_inputs.keys())
@@ -108,7 +109,8 @@ class TestDataPrep(unittest.TestCase):
         label2id, id2label, relations = build_label_mappings(TestDataPrep.prep_dir)
         tokenized_inputs = encode_data(
             examples, label2id, TestDataPrep.tokenizer, TestDataPrep.max_length,
-            tag_type="positional", do_position_embedding=False)
+            tags_added_to_text=None, mention_token_ids_src="raw",
+            position_embedding=False)
         self.assertEqual(len(tokenized_inputs.keys()), 5)
         self.assertTrue("input_ids" in tokenized_inputs.keys())
         self.assertTrue("token_type_ids" in tokenized_inputs.keys())
@@ -124,7 +126,8 @@ class TestDataPrep(unittest.TestCase):
         label2id, id2label, relations = build_label_mappings(TestDataPrep.prep_dir)
         tokenized_inputs = encode_data(
             examples, label2id, TestDataPrep.tokenizer, TestDataPrep.max_length,
-            tag_type="entity", do_position_embedding=False)
+            tags_added_to_text="entity", mention_token_ids_src="tokenizer",
+            position_embedding=True)
         self.assertEqual(len(tokenized_inputs.keys()), 5)
         self.assertTrue("input_ids" in tokenized_inputs.keys())
         self.assertTrue("token_type_ids" in tokenized_inputs.keys())
@@ -140,7 +143,8 @@ class TestDataPrep(unittest.TestCase):
         label2id, id2label, relations = build_label_mappings(TestDataPrep.prep_dir)
         tokenized_inputs = encode_data(
             examples, label2id, TestDataPrep.tokenizer, TestDataPrep.max_length,
-            tag_type="entity", do_position_embedding=False)
+            tags_added_to_text="entity", mention_token_ids_src="tokenizer",
+            position_embedding=False)
         self.assertEqual(len(tokenized_inputs.keys()), 5)
         self.assertTrue("input_ids" in tokenized_inputs.keys())
         self.assertTrue("token_type_ids" in tokenized_inputs.keys())
@@ -156,7 +160,8 @@ class TestDataPrep(unittest.TestCase):
         label2id, id2label, relations = build_label_mappings(TestDataPrep.prep_dir)
         tokenized_inputs = encode_data(
             examples, label2id, TestDataPrep.tokenizer, TestDataPrep.max_length,
-            tag_type="entity", do_position_embedding=False)
+            tags_added_to_text="entity", mention_token_ids_src="tokenizer",
+            position_embedding=False)
         self.assertEqual(len(tokenized_inputs.keys()), 5)
         self.assertTrue("input_ids" in tokenized_inputs.keys())
         self.assertTrue("token_type_ids" in tokenized_inputs.keys())
@@ -173,8 +178,9 @@ class TestDataPrep(unittest.TestCase):
             label2id=label2id, 
             tokenizer=TestDataPrep.tokenizer,
             max_length=TestDataPrep.max_length,
-            tag_type="entity",
-            do_position_embedding=False)
+            tags_added_to_text="entity",
+            mention_token_ids_src="tokenizer",
+            position_embedding=False)
         enc_dataset = raw_dataset.map(
             data_encoder_fn, batched=True,
             remove_columns=["text", "rel_label"])
@@ -187,11 +193,11 @@ class TestDataPrep(unittest.TestCase):
         self.assertTrue("label" in enc_dataset["train"].features.keys())
         self.assertTrue("mention_token_ids" in enc_dataset["train"].features.keys())
 
-    def test_dataprep_factory(self):
-        for input_pattern in ["standard", "standard_pos", "positional_embedding", "entity_marker", "entity_type_marker"]:
-            pattern_props = DATAPREP_FACTORY[input_pattern]
-            self.assertIsNotNone(pattern_props)
-            self.assertIsInstance(pattern_props, dict)
+    # def test_dataprep_factory(self):
+    #     for input_pattern in ["standard", "standard_pos", "positional_embedding", "entity_marker", "entity_type_marker"]:
+    #         pattern_props = DATAPREP_FACTORY[input_pattern]
+    #         self.assertIsNotNone(pattern_props)
+    #         self.assertIsInstance(pattern_props, dict)
 
     def test_create_and_run_dataloader(self):
         raw_dataset = build_raw_dataset(
@@ -203,8 +209,9 @@ class TestDataPrep(unittest.TestCase):
             label2id=label2id, 
             tokenizer=TestDataPrep.tokenizer,
             max_length=TestDataPrep.max_length,
-            tag_type="entity",
-            do_position_embedding=False)
+            tags_added_to_text="entity",
+            mention_token_ids_src="tokenizer",
+            position_embedding=False)
         enc_dataset = raw_dataset.map(
             data_encoder_fn, batched=True,
             remove_columns=["text", "rel_label"])

@@ -177,23 +177,24 @@ if __name__ == "__main__":
 
     prep_dir = conf["prep_data_dir"]
     temp_dir = conf["temp_data_dir"]
-    input_pattern_props = dataprep.DATAPREP_FACTORY[conf["input_pattern"]]
 
     raw_dataset = dataprep.build_raw_dataset(
         prep_dir, temp_dir, tokenizer,
-        tag_type=input_pattern_props["tag_type"])
+        tag_type=conf["mention_tag_type"])
 
-    labels_fp = os.path.join(conf["prep_data_dir"], "relations.txt")
-    label2id, id2label, relations = dataprep.build_label_mappings(labels_fp)
+    label2id, id2label, relations = dataprep.build_label_mappings(
+        conf["prep_data_dir"])
 
     data_encoder_fn = partial(dataprep.encode_data, 
-        label2id=label2id, tokenizer=tokenizer,
+        label2id=label2id, 
+        tokenizer=tokenizer,
         max_length=conf["max_length"],
-        align_mention_token_ids=input_pattern_props["align_mention_token_ids"],
-        update_token_type_ids=input_pattern_props["update_token_type_ids"])
+        tags_added_to_text=conf["mention_tag_added_to_text"],
+        mention_token_ids_src=conf["mention_token_ids_src"],
+        position_embedding=conf["mention_position_embedding"])
     enc_dataset = raw_dataset.map(
         data_encoder_fn, batched=True,
-        remove_columns=input_pattern_props["remove_columns"])
+        remove_columns=conf["raw_columns_to_remove"])
 
     train_dl, val_dl, test_dl = dataprep.build_dataloaders(
         enc_dataset, tokenizer, conf["batch_size"], conf["test_mode"])

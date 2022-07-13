@@ -166,8 +166,9 @@ def encode_data(examples: list,
                 label2id: dict,
                 tokenizer: AutoTokenizer,
                 max_length: int,
-                tag_type: str = None,
-                do_position_embedding: bool = False) -> dict:
+                tags_added_to_text: str = None,
+                mention_token_ids_src: str = None,
+                position_embedding: bool = False) -> dict:
 
     # - if tag_type is None, skip vocab add and post-compute positions
     # - if tag_type is positional, use raw_mention_token_ids to compute
@@ -175,9 +176,9 @@ def encode_data(examples: list,
     # - if tag_type is entity or entity_type, add tags to tokenizer vocab
     #   and compute mention_token_ids using tokenizer
     # add mention tokens to tokenizer vocabulary
-    if tag_type == "entity" or tag_type == "entity_type":
+    if tags_added_to_text == "entity" or tags_added_to_text == "entity_type":
         tag_tokens = []
-        if tag_type == "entity_type":
+        if tags_added_to_text == "entity_type":
             for relation in label2id.keys():
                 for prefix in ["E1", "E2"]:
                     tag_tokens.append("<{:s}:{:s}>".format(prefix, relation))
@@ -196,39 +197,40 @@ def encode_data(examples: list,
     tokenized_inputs["label"] = [label2id[label] for label in examples["rel_label"]]
 
     # compute mention token positions
-    mention_token_ids = []
-    if tag_type == "entity" or tag_type == "entity_type":
-        # use tags to compute token positions
-        tag_token_ids = set(tokenizer.convert_tokens_to_ids(tag_tokens))
-        for i in range(len(tokenized_inputs.input_ids)):
-            try:
-                mtis = [j for j, x in enumerate(tokenized_inputs.input_ids[i])
-                        if x in tag_token_ids]
-                if len(mtis) != 4:
-                    mtis = [-1, -1, -1, -1]
-            except IndexError:
-                mtis = [-1, -1, -1]
-            mention_token_ids.append(mtis)
-    elif tag_type == "positional":
-        # use raw_mention_token_ids and tokenized_inputs.word_ids() to
-        # compute token positions
-        raw_mention_token_ids = examples["raw_mention_token_ids"]
-        for i, (e1_start, e1_end, e2_start, e2_end) in enumerate(raw_mention_token_ids):
-            word_ids = tokenized_inputs.word_ids(i)
-            try:
-                mention_token_ids.append([
-                    min([ix for ix, wid in enumerate(word_ids) if wid == e1_start]),
-                    max([ix+1 for ix, wid in enumerate(word_ids) if wid == e1_end]),
-                    min([ix for ix, wid in enumerate(word_ids) if wid == e2_start]),
-                    max([ix+1 for ix, wid in enumerate(word_ids) if wid == e2_end])
-                ])
-            except ValueError:
-                mention_token_ids.append([-1, -1, -1, -1])
+    if mention_token_ids_src is not None:
+        mention_token_ids = []
+        if mention_token_ids_src == "tokenizer":
+            # use tags to compute token positions
+            tag_token_ids = set(tokenizer.convert_tokens_to_ids(tag_tokens))
+            for i in range(len(tokenized_inputs.input_ids)):
+                try:
+                    mtis = [j for j, x in enumerate(tokenized_inputs.input_ids[i])
+                            if x in tag_token_ids]
+                    if len(mtis) != 4:
+                        mtis = [-1, -1, -1, -1]
+                except IndexError:
+                    mtis = [-1, -1, -1]
+                mention_token_ids.append(mtis)
+        elif mention_token_ids_src == "raw":
+            # use raw_mention_token_ids and tokenized_inputs.word_ids() to
+            # compute token positions
+            raw_mention_token_ids = examples["raw_mention_token_ids"]
+            for i, (e1_start, e1_end, e2_start, e2_end) in enumerate(raw_mention_token_ids):
+                word_ids = tokenized_inputs.word_ids(i)
+                try:
+                    mention_token_ids.append([
+                        min([ix for ix, wid in enumerate(word_ids) if wid == e1_start]),
+                        max([ix+1 for ix, wid in enumerate(word_ids) if wid == e1_end]),
+                        min([ix for ix, wid in enumerate(word_ids) if wid == e2_start]),
+                        max([ix+1 for ix, wid in enumerate(word_ids) if wid == e2_end])
+                    ])
+                except ValueError:
+                    mention_token_ids.append([-1, -1, -1, -1])
 
-    if len(mention_token_ids) > 0:
-        tokenized_inputs["mention_token_ids"] = mention_token_ids
+        if len(mention_token_ids) > 0:
+            tokenized_inputs["mention_token_ids"] = mention_token_ids
 
-    if tag_type is not None and do_position_embedding:
+    if mention_token_ids_src is not None and position_embedding:
         token_type_ids_upd = []
         token_type_ids = tokenized_inputs.token_type_ids
         for i in range(len(tokenized_inputs.input_ids)):
@@ -242,38 +244,38 @@ def encode_data(examples: list,
     return tokenized_inputs
 
 
-DATAPREP_FACTORY = {
-    "standard": {
-        "tag_type": None,
-        "align_mention_token_ids": False,
-        "update_token_type_ids": False,
-        "remove_columns": ["text", "rel_label", "mention_token_ids"]
-    },
-    "standard_pos": {
-        "tag_type": None,
-        "align_mention_token_ids": False,
-        "update_token_type_ids": False,
-        "remove_columns": ["text", "rel_label", "mention_token_ids"]
-    },
-    "positional_embedding": {
-        "tag_type": None,
-        "align_mention_token_ids": False,
-        "update_token_type_ids": False,
-        "remove_columns": ["text", "rel_label", "mention_token_ids"]
-    },
-    "entity_marker": {
-        "tag_type": None,
-        "align_mention_token_ids": False,
-        "update_token_type_ids": False,
-        "remove_columns": ["text", "rel_label", "mention_token_ids"]
-    },
-    "entity_type_marker": {
-        "tag_type": None,
-        "align_mention_token_ids": False,
-        "update_token_type_ids": False,
-        "remove_columns": ["text", "rel_label", "mention_token_ids"]
-    }
-}
+# DATAPREP_FACTORY = {
+#     "standard": {
+#         "tag_type": None,
+#         "align_mention_token_ids": False,
+#         "update_token_type_ids": False,
+#         "remove_columns": ["text", "rel_label", "mention_token_ids"]
+#     },
+#     "standard_pos": {
+#         "tag_type": None,
+#         "align_mention_token_ids": False,
+#         "update_token_type_ids": False,
+#         "remove_columns": ["text", "rel_label", "mention_token_ids"]
+#     },
+#     "positional_embedding": {
+#         "tag_type": None,
+#         "align_mention_token_ids": False,
+#         "update_token_type_ids": False,
+#         "remove_columns": ["text", "rel_label", "mention_token_ids"]
+#     },
+#     "entity_marker": {
+#         "tag_type": None,
+#         "align_mention_token_ids": False,
+#         "update_token_type_ids": False,
+#         "remove_columns": ["text", "rel_label", "mention_token_ids"]
+#     },
+#     "entity_type_marker": {
+#         "tag_type": None,
+#         "align_mention_token_ids": False,
+#         "update_token_type_ids": False,
+#         "remove_columns": ["text", "rel_label", "mention_token_ids"]
+#     }
+# }
 
 
 def build_dataloader_for_split(enc_dataset: DatasetDict, 
@@ -300,10 +302,10 @@ def build_dataloader_for_split(enc_dataset: DatasetDict,
 def build_dataloaders(enc_dataset: DatasetDict, 
                       tokenizer: AutoTokenizer,
                       batch_size: int,
-                      test_mode: str = "false") -> tuple:
+                      test_mode: str = False) -> tuple:
     dataloaders = []
     for split in ["train", "val", "test"]:
         dataloaders.append(
             build_dataloader_for_split(enc_dataset, tokenizer, split, 
-                                       batch_size, test_mode == "true"))
+                                       batch_size, test_mode=test_mode))
     return dataloaders

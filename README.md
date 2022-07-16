@@ -37,7 +37,9 @@ Our initial set of experiments were done using Colab notebooks, but there was a 
 * prepare.py -- converts raw files in `data/raw` from the SciERC dataset into a set of training, validation, and test input files in SpaCy Relation Extraction format (JSON-L), as well as files listing relations and entities in `data/prepared`.
 * train.py -- trains a model described by a configuration file specified on the command line, using the input in `data/prepared`. Writes trained model and tokenizer out to `data/models`. Configuration files for the models described above are in the `configs` folder in the repository.
 
-  ```python train.py -c /path/to/config-file.cfg```
+```
+$ python train.py -c /path/to/config-file.cfg
+```
  
 The diagram below shows the main components of our pipeline, with a list of properties that are required by each.
 
@@ -80,7 +82,13 @@ We evaluate against BERT, DistilBERT and XLNet.
 
 ### Performance Comparison
 
-TODO
+The chart below depicts the chart above in a graphical manner. The top chart shows the distribution of macro-F1 scores for each of the 9 Neural RE architectures, and the bottom chart shows the distribution of Test accuracy scores. Because the labels are unbalanced, we will use the macro-F1 scores for our observations.
+
+1. Models that use `[CLS]` as output tend to not perform well, except when the text is tagged with entity marker tags.
+2. Adding positional embeddings to the input does not result in any significant difference in performance. Positional embeddings cannot be used with certain models such as distilBERT since they don't have `token_type_ids`.
+3. For high performing models using Entity Markers, the additional information from Entity Type markers don't provide significant performance improvement.
+
+<img src="figures/perf-compare.png"/>
 
 ## Future Work
 

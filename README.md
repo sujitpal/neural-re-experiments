@@ -87,6 +87,7 @@ The chart below depicts the chart above in a graphical manner. The top chart sho
 1. Models that use `[CLS]` as output tend to not perform well, except when the text is tagged with entity marker tags.
 2. Adding positional embeddings to the input does not result in any significant difference in performance. Positional embeddings cannot be used with certain models such as distilBERT since they don't have `token_type_ids`.
 3. For high performing models using Entity Markers, the additional information from Entity Type markers don't provide significant performance improvement.
+4. Using the hidden state from the entity start tokens from subject and object spans provides better performance than the maxpool over these spans, for text tagged with either entity or entity type markers.
 
 <img src="figures/perf-compare.png"/>
 

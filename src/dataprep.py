@@ -42,7 +42,6 @@ def reformat_prepared_jsonl(jsonl_str: str,
                             tag_type: str = None) -> dict:
 
     rec = json.loads(jsonl_str, strict=False)
-    # print(json.dumps(rec, indent=2))
     text = rec["text"]
     label = rec["r"]
 
@@ -51,7 +50,6 @@ def reformat_prepared_jsonl(jsonl_str: str,
     ent_spans = [(head_ent["start"], head_ent["end"], head_ent["type"]),
                  (tail_ent["start"], tail_ent["end"], tail_ent["type"])]
     ent_spans = sorted(ent_spans, key=operator.itemgetter(0))
-    # print("ent_spans:", ent_spans)
     
     span_pts = [0]
     for start, end, _ in ent_spans:
@@ -59,9 +57,7 @@ def reformat_prepared_jsonl(jsonl_str: str,
         span_pts.append(end)
     span_pts.append(len(text))
     span_ranges = [(span_pts[i], span_pts[i+1]) for i in range(len(span_pts) - 1)]
-    # print("span_ranges:", span_ranges)
     splits = [text[start:end] for start, end in span_ranges]
-    # print("splits:", splits)
 
     # - if tag_type == None -- no positional information needed
     # - if tag_type == positional -- positional information only, no tags
@@ -162,10 +158,20 @@ def build_label_mappings(prep_dir: str) -> tuple:
     return label2id, id2label, relations
 
 
+def get_entity_type_list(prep_dir: str) -> list:
+    entity_types = []
+    entities_fp = os.path.join(prep_dir, "entities.txt")
+    with open(entities_fp, "r", encoding="utf-8") as fent:
+        for line in fent:
+            entity_types.append(line.strip())
+    return entity_types
+
+
 def encode_data(examples: list,
                 label2id: dict,
                 tokenizer: AutoTokenizer,
                 max_length: int,
+                entity_types: None,
                 tags_added_to_text: str = None,
                 mention_token_ids_src: str = None,
                 position_embedding: bool = False) -> dict:
@@ -179,10 +185,10 @@ def encode_data(examples: list,
     if tags_added_to_text == "entity" or tags_added_to_text == "entity_type":
         tag_tokens = []
         if tags_added_to_text == "entity_type":
-            for relation in label2id.keys():
+            for entity_type in entity_types:
                 for prefix in ["E1", "E2"]:
-                    tag_tokens.append("<{:s}:{:s}>".format(prefix, relation))
-                    tag_tokens.append("</{:s}:{:s}>".format(prefix, relation))
+                    tag_tokens.append("<{:s}:{:s}>".format(prefix, entity_type))
+                    tag_tokens.append("</{:s}:{:s}>".format(prefix, entity_type))
         else:
             for relation in ["E1", "E2"]:
                 tag_tokens.append("<{:s}>".format(relation))
@@ -209,7 +215,7 @@ def encode_data(examples: list,
                     if len(mtis) != 4:
                         mtis = [-1, -1, -1, -1]
                 except IndexError:
-                    mtis = [-1, -1, -1]
+                    mtis = [-1, -1, -1, -1]
                 mention_token_ids.append(mtis)
         elif mention_token_ids_src == "raw":
             # use raw_mention_token_ids and tokenized_inputs.word_ids() to
@@ -242,40 +248,6 @@ def encode_data(examples: list,
         tokenized_inputs["token_type_ids"] = token_type_ids_upd
 
     return tokenized_inputs
-
-
-# DATAPREP_FACTORY = {
-#     "standard": {
-#         "tag_type": None,
-#         "align_mention_token_ids": False,
-#         "update_token_type_ids": False,
-#         "remove_columns": ["text", "rel_label", "mention_token_ids"]
-#     },
-#     "standard_pos": {
-#         "tag_type": None,
-#         "align_mention_token_ids": False,
-#         "update_token_type_ids": False,
-#         "remove_columns": ["text", "rel_label", "mention_token_ids"]
-#     },
-#     "positional_embedding": {
-#         "tag_type": None,
-#         "align_mention_token_ids": False,
-#         "update_token_type_ids": False,
-#         "remove_columns": ["text", "rel_label", "mention_token_ids"]
-#     },
-#     "entity_marker": {
-#         "tag_type": None,
-#         "align_mention_token_ids": False,
-#         "update_token_type_ids": False,
-#         "remove_columns": ["text", "rel_label", "mention_token_ids"]
-#     },
-#     "entity_type_marker": {
-#         "tag_type": None,
-#         "align_mention_token_ids": False,
-#         "update_token_type_ids": False,
-#         "remove_columns": ["text", "rel_label", "mention_token_ids"]
-#     }
-# }
 
 
 def build_dataloader_for_split(enc_dataset: DatasetDict, 

@@ -91,10 +91,11 @@ class TestDataPrep(unittest.TestCase):
             tag_type=None)
         examples = raw_dataset["train"][0:5]
         label2id, id2label, relations = build_label_mappings(TestDataPrep.prep_dir)
+        entity_types = get_entity_type_list(TestDataPrep.prep_dir)
         tokenized_inputs = encode_data(
             examples, label2id, TestDataPrep.tokenizer, TestDataPrep.max_length,
-            tags_added_to_text=None, mention_token_ids_src=None, 
-            position_embedding=False)
+            entity_types, tags_added_to_text=None,
+            mention_token_ids_src=None, position_embedding=False)
         self.assertEqual(len(tokenized_inputs.keys()), 4)
         self.assertTrue("input_ids" in tokenized_inputs.keys())
         self.assertTrue("token_type_ids" in tokenized_inputs.keys())
@@ -107,10 +108,11 @@ class TestDataPrep(unittest.TestCase):
             tag_type="positional")
         examples = raw_dataset["train"][0:5]
         label2id, id2label, relations = build_label_mappings(TestDataPrep.prep_dir)
+        entity_types = get_entity_type_list(TestDataPrep.prep_dir)
         tokenized_inputs = encode_data(
             examples, label2id, TestDataPrep.tokenizer, TestDataPrep.max_length,
-            tags_added_to_text=None, mention_token_ids_src="raw",
-            position_embedding=False)
+            entity_types, tags_added_to_text=None,
+            mention_token_ids_src="raw", position_embedding=False)
         self.assertEqual(len(tokenized_inputs.keys()), 5)
         self.assertTrue("input_ids" in tokenized_inputs.keys())
         self.assertTrue("token_type_ids" in tokenized_inputs.keys())
@@ -124,10 +126,11 @@ class TestDataPrep(unittest.TestCase):
             tag_type="entity")
         examples = raw_dataset["train"][0:5]
         label2id, id2label, relations = build_label_mappings(TestDataPrep.prep_dir)
+        entity_types = get_entity_type_list(TestDataPrep.prep_dir)
         tokenized_inputs = encode_data(
             examples, label2id, TestDataPrep.tokenizer, TestDataPrep.max_length,
-            tags_added_to_text="entity", mention_token_ids_src="tokenizer",
-            position_embedding=True)
+            entity_types, tags_added_to_text="entity", 
+            mention_token_ids_src="tokenizer", position_embedding=True)
         self.assertEqual(len(tokenized_inputs.keys()), 5)
         self.assertTrue("input_ids" in tokenized_inputs.keys())
         self.assertTrue("token_type_ids" in tokenized_inputs.keys())
@@ -141,10 +144,11 @@ class TestDataPrep(unittest.TestCase):
             tag_type="entity")
         examples = raw_dataset["train"][0:5]
         label2id, id2label, relations = build_label_mappings(TestDataPrep.prep_dir)
+        entity_types = get_entity_type_list(TestDataPrep.prep_dir)
         tokenized_inputs = encode_data(
             examples, label2id, TestDataPrep.tokenizer, TestDataPrep.max_length,
-            tags_added_to_text="entity", mention_token_ids_src="tokenizer",
-            position_embedding=False)
+            entity_types, tags_added_to_text="entity",
+            mention_token_ids_src="tokenizer", position_embedding=False)
         self.assertEqual(len(tokenized_inputs.keys()), 5)
         self.assertTrue("input_ids" in tokenized_inputs.keys())
         self.assertTrue("token_type_ids" in tokenized_inputs.keys())
@@ -158,10 +162,11 @@ class TestDataPrep(unittest.TestCase):
             tag_type="entity")
         examples = raw_dataset["train"][0:5]
         label2id, id2label, relations = build_label_mappings(TestDataPrep.prep_dir)
+        entity_types = get_entity_type_list(TestDataPrep.prep_dir)
         tokenized_inputs = encode_data(
             examples, label2id, TestDataPrep.tokenizer, TestDataPrep.max_length,
-            tags_added_to_text="entity", mention_token_ids_src="tokenizer",
-            position_embedding=False)
+            entity_types, tags_added_to_text="entity",
+            mention_token_ids_src="tokenizer", position_embedding=False)
         self.assertEqual(len(tokenized_inputs.keys()), 5)
         self.assertTrue("input_ids" in tokenized_inputs.keys())
         self.assertTrue("token_type_ids" in tokenized_inputs.keys())
@@ -174,10 +179,12 @@ class TestDataPrep(unittest.TestCase):
             TestDataPrep.prep_dir, TestDataPrep.temp_dir, TestDataPrep.tokenizer,
             tag_type="entity")
         label2id, id2label, relations = build_label_mappings(TestDataPrep.prep_dir)
+        entity_types = get_entity_type_list(TestDataPrep.prep_dir)
         data_encoder_fn = partial(encode_data, 
             label2id=label2id, 
             tokenizer=TestDataPrep.tokenizer,
             max_length=TestDataPrep.max_length,
+            entity_types=entity_types,
             tags_added_to_text="entity",
             mention_token_ids_src="tokenizer",
             position_embedding=False)
@@ -193,22 +200,18 @@ class TestDataPrep(unittest.TestCase):
         self.assertTrue("label" in enc_dataset["train"].features.keys())
         self.assertTrue("mention_token_ids" in enc_dataset["train"].features.keys())
 
-    # def test_dataprep_factory(self):
-    #     for input_pattern in ["standard", "standard_pos", "positional_embedding", "entity_marker", "entity_type_marker"]:
-    #         pattern_props = DATAPREP_FACTORY[input_pattern]
-    #         self.assertIsNotNone(pattern_props)
-    #         self.assertIsInstance(pattern_props, dict)
-
     def test_create_and_run_dataloader(self):
         raw_dataset = build_raw_dataset(
             TestDataPrep.prep_dir, TestDataPrep.temp_dir, TestDataPrep.tokenizer,
             tag_type="entity")
         label2id, id2label, relations = build_label_mappings(TestDataPrep.prep_dir)
+        entity_types = get_entity_type_list(TestDataPrep.prep_dir)
 
         data_encoder_fn = partial(encode_data, 
             label2id=label2id, 
             tokenizer=TestDataPrep.tokenizer,
             max_length=TestDataPrep.max_length,
+            entity_types=entity_types,
             tags_added_to_text="entity",
             mention_token_ids_src="tokenizer",
             position_embedding=False)

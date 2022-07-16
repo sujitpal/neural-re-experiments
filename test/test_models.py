@@ -7,7 +7,7 @@ from functools import partial
 
 from src.dataprep import (
     build_raw_dataset, build_label_mappings,
-    encode_data, build_dataloader_for_split
+    encode_data, build_dataloader_for_split, get_entity_type_list
 )
 from src.models import *
 
@@ -31,17 +31,22 @@ class TestModels(unittest.TestCase):
             TestModels.prep_dir, TestModels.temp_dir, tokenizer,
             tag_type=tag_type_raw)
         label2id, _, _ = build_label_mappings(TestModels.prep_dir)
+        entity_types = get_entity_type_list(TestModels.prep_dir)
 
         data_encoder_fn = partial(encode_data, 
             label2id=label2id, 
             tokenizer=tokenizer,
             max_length=TestModels.max_length,
+            entity_types=entity_types,
             tags_added_to_text=tag_type_enc,
             mention_token_ids_src=mention_token_id_src,
             position_embedding=position_embedding)
         enc_dataset = raw_dataset.map(
             data_encoder_fn, batched=True,
             remove_columns=remove_raw_columns)
+        if mention_token_id_src is not None:
+            enc_dataset = enc_dataset.filter(
+                lambda x: x["mention_token_ids"] != [-1, -1, -1, -1])
 
         train_dl = build_dataloader_for_split(
             enc_dataset, tokenizer, "train", 
@@ -188,6 +193,60 @@ class TestModels(unittest.TestCase):
         tokenizer = AutoTokenizer.from_pretrained(TestModels.base_model_name)
         train_dl = self._build_dataset_for_task(
             tokenizer, "entity", "entity", "tokenizer", False, ["text", "rel_label"])
+        new_vocab_size = len(tokenizer.vocab)
+
+        model = entity_start_model(
+            TestModels.base_model_name, TestModels.num_classes, new_vocab_size)
+        self.assertIsNotNone(model)
+        self.assertIsInstance(model, nn.Module)
+        device = self._set_device()
+        model = model.to(device)
+
+        for batch in train_dl:
+            batch = {k: v.to(device) for k, v in batch.items()}
+            outputs = model(**batch)
+            break
+        self.assertIsNotNone(outputs)
+        self.assertIsInstance(outputs, SequenceClassifierOutput)
+        self.assertEqual(len(outputs.keys()), 2)
+        self.assertTrue("loss" in outputs.keys())
+        self.assertTrue("logits" in outputs.keys())
+        self.assertIsInstance(outputs.loss.detach().cpu().numpy().item(), float)
+        self.assertEqual(outputs.logits.detach().cpu().numpy().shape, 
+            (TestModels.batch_size, TestModels.num_classes))
+
+    def test_get_and_run_entity_type_marker_mention_pooling_model(self):
+        tokenizer = AutoTokenizer.from_pretrained(TestModels.base_model_name)
+        train_dl = self._build_dataset_for_task(
+            tokenizer, "entity_type", "entity_type", "tokenizer", False,
+            ["text", "rel_label"])
+        new_vocab_size = len(tokenizer.vocab)
+
+        model = mention_pooling_model(
+            TestModels.base_model_name, TestModels.num_classes, new_vocab_size)
+        self.assertIsNotNone(model)
+        self.assertIsInstance(model, nn.Module)
+        device = self._set_device()
+        model = model.to(device)
+
+        for batch in train_dl:
+            batch = {k: v.to(device) for k, v in batch.items()}
+            outputs = model(**batch)
+            break
+        self.assertIsNotNone(outputs)
+        self.assertIsInstance(outputs, SequenceClassifierOutput)
+        self.assertEqual(len(outputs.keys()), 2)
+        self.assertTrue("loss" in outputs.keys())
+        self.assertTrue("logits" in outputs.keys())
+        self.assertIsInstance(outputs.loss.detach().cpu().numpy().item(), float)
+        self.assertEqual(outputs.logits.detach().cpu().numpy().shape, 
+            (TestModels.batch_size, TestModels.num_classes))
+
+    def test_get_and_run_entity_type_marker_entity_start_model(self):
+        tokenizer = AutoTokenizer.from_pretrained(TestModels.base_model_name)
+        train_dl = self._build_dataset_for_task(
+            tokenizer, "entity_type", "entity_type", "tokenizer", False,
+            ["text", "rel_label"])
         new_vocab_size = len(tokenizer.vocab)
 
         model = entity_start_model(

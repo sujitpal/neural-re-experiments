@@ -21,7 +21,7 @@ def parse_text(file_path: str) -> str:
     return text
 
 
-def parse_entity_and_relation(file_path: str, text: str) -> list:
+def parse_entity_and_relation(file_path: str, text: str) -> tuple:
     """Read BRAT style annotation file and create one or more SpaCy
        style relation JSON records.
 
@@ -30,11 +30,11 @@ def parse_entity_and_relation(file_path: str, text: str) -> list:
        text (str): text on which annotation is computed
 
        Returns:
-       list: list of (SpaCy style) structured records, each representing
-             a relation triple.
+       tuple:list of (SpaCy style) structured records, each representing
+            a relation triple, and list of entity types
 
     """
-    entity_dict, recs = {}, []
+    entity_dict, recs, entity_types = {}, [], []
     with open(file_path, "r") as fann:
         for line in fann:
             line = line.strip()
@@ -45,6 +45,7 @@ def parse_entity_and_relation(file_path: str, text: str) -> list:
                 estart = int(estart)
                 eend = int(eend)
                 entity_dict[eid] = (etype, estart, eend, espan)
+                entity_types.append(etype)
             elif line.startswith("R"):
                 # relations
                 rid, rgrp = line.split("\t")
@@ -75,7 +76,7 @@ def parse_entity_and_relation(file_path: str, text: str) -> list:
             else:
                 pass
 
-    return recs
+    return recs, entity_types
 
 
 def write_data(data: list, file_path: str) -> int:
@@ -105,6 +106,13 @@ def write_labels(labels: list, label_path: str) -> int:
     return len(relations)
 
 
+def write_entity_types(entity_types: list, entity_path: str) -> list:
+    entity_types = sorted(list(set(entity_types)))
+    with open(entity_path, "w", encoding="utf-8") as fent:
+        for entity_type in entity_types:
+            fent.write(entity_type + "\n")
+    return len(entity_types)
+
 
 if __name__ == "__main__":
 
@@ -116,12 +124,14 @@ if __name__ == "__main__":
     txt_files = [fn for fn in os.listdir(raw_data_dir) if fn.endswith(".txt")]
     ann_files = [fn.replace(".txt", ".ann") for fn in txt_files]
 
-    data, labels = [], []
+    data, labels, entity_types = [], [], []
     for txt_file, ann_file in zip(txt_files, ann_files):
         text = parse_text(os.path.join(raw_data_dir, txt_file))
-        recs = parse_entity_and_relation(os.path.join(raw_data_dir, ann_file), text)
+        recs, etypes = parse_entity_and_relation(
+            os.path.join(raw_data_dir, ann_file), text)
         data.extend(recs)
         labels.extend([rec["r"] for rec in recs])
+        entity_types.extend(etypes)
 
     assert len(data) == len(labels)
     logging.info("read: #-records: {:d}".format(len(data)))
@@ -144,3 +154,7 @@ if __name__ == "__main__":
 
     num_labels = write_labels(labels, os.path.join(prepared_data_dir, "relations.txt"))
     logging.info("written: {:d} labels".format(num_labels))
+
+    num_entities = write_entity_types(
+        entity_types, os.path.join(prepared_data_dir, "entities.txt"))
+    logging.info("written: {:d} entity types".format(num_entities))

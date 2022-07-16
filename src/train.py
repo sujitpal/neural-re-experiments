@@ -193,11 +193,13 @@ if __name__ == "__main__":
 
     label2id, id2label, relations = dataprep.build_label_mappings(
         conf["prep_data_dir"])
-
+    entity_types = dataprep.get_entity_type_list(conf["prep_data_dir"])
+    
     data_encoder_fn = partial(dataprep.encode_data, 
         label2id=label2id, 
         tokenizer=tokenizer,
         max_length=conf["max_length"],
+        entity_types=entity_types,
         tags_added_to_text=conf["mention_tag_added_to_text"],
         mention_token_ids_src=conf["mention_token_ids_src"],
         position_embedding=conf["mention_position_embedding"])

@@ -1,4 +1,5 @@
 import argparse
+from codecs import ignore_errors
 import json
 import logging
 import matplotlib.pyplot as plt
@@ -17,7 +18,6 @@ from sklearn.metrics import (
 )
 from torch.utils.data import DataLoader
 from transformers import AutoTokenizer, get_scheduler
-from transformers.modeling_outputs import SequenceClassifierOutput
 
 import dataprep
 import models
@@ -103,8 +103,17 @@ def save_checkpoint(model: object,
                     tokenizer: AutoTokenizer,
                     model_dir: str,
                     epoch: int) -> None:
-    model.save_pretrained(os.path.join(model_dir, "ckpt-{:d}".format(epoch)))
-    tokenizer.save_pretrained(os.path.join(model_dir, "ckpt-{:d}".format(epoch)))
+    if isinstance(model, torch.nn.Module):
+        ckpt_dir = os.path.join(model_dir, "ckpt-{:d}".format(epoch))
+        if not os.path.exists(ckpt_dir):
+            os.makedirs(ckpt_dir)
+        torch.save(model, os.path.join(ckpt_dir, "model.pt"))
+        tokenizer_dir = os.path.join(model_dir, "tokenizer")
+        if not os.path.exists(tokenizer_dir):
+            tokenizer.save_pretrained(tokenizer_dir)
+    else:
+        model.save_pretrained(os.path.join(model_dir, "ckpt-{:d}".format(epoch)))
+        tokenizer.save_pretrained(os.path.join(model_dir, "ckpt-{:d}".format(epoch)))
 
 
 def save_training_history(history: list, model_dir: object) -> None:
@@ -192,16 +201,26 @@ if __name__ == "__main__":
         tags_added_to_text=conf["mention_tag_added_to_text"],
         mention_token_ids_src=conf["mention_token_ids_src"],
         position_embedding=conf["mention_position_embedding"])
-    enc_dataset = raw_dataset.map(
-        data_encoder_fn, batched=True,
-        remove_columns=conf["raw_columns_to_remove"])
+    if conf["model_pattern"] == "cls":
+        enc_dataset = raw_dataset.map(
+            data_encoder_fn, batched=True,
+            remove_columns=conf["raw_columns_to_remove"])
+    else:
+        enc_dataset = (raw_dataset
+            .map(
+                data_encoder_fn, batched=True,
+                remove_columns=conf["raw_columns_to_remove"])
+            .filter(lambda x: x["mention_token_ids"] != [-1, -1, -1, -1])
+        )
 
     train_dl, val_dl, test_dl = dataprep.build_dataloaders(
         enc_dataset, tokenizer, conf["batch_size"], conf["test_mode"])
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model_fn = models.MODEL_FACTORY[conf["model_pattern"]]
-    model = model_fn(base_model_name, num_labels=len(relations), vocab_size=None)
+    model = model_fn(
+        base_model_name, num_labels=len(relations), 
+        vocab_size=len(tokenizer.vocab))
     model = model.to(device)
 
     optimizer = AdamW(model.parameters(), 

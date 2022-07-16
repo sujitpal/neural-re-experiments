@@ -183,3 +183,29 @@ class TestModels(unittest.TestCase):
         self.assertIsInstance(outputs.loss.detach().cpu().numpy().item(), float)
         self.assertEqual(outputs.logits.detach().cpu().numpy().shape, 
             (TestModels.batch_size, TestModels.num_classes))
+
+    def test_get_and_run_entity_marker_entity_start_model(self):
+        tokenizer = AutoTokenizer.from_pretrained(TestModels.base_model_name)
+        train_dl = self._build_dataset_for_task(
+            tokenizer, "entity", "entity", "tokenizer", False, ["text", "rel_label"])
+        new_vocab_size = len(tokenizer.vocab)
+
+        model = entity_start_model(
+            TestModels.base_model_name, TestModels.num_classes, new_vocab_size)
+        self.assertIsNotNone(model)
+        self.assertIsInstance(model, nn.Module)
+        device = self._set_device()
+        model = model.to(device)
+
+        for batch in train_dl:
+            batch = {k: v.to(device) for k, v in batch.items()}
+            outputs = model(**batch)
+            break
+        self.assertIsNotNone(outputs)
+        self.assertIsInstance(outputs, SequenceClassifierOutput)
+        self.assertEqual(len(outputs.keys()), 2)
+        self.assertTrue("loss" in outputs.keys())
+        self.assertTrue("logits" in outputs.keys())
+        self.assertIsInstance(outputs.loss.detach().cpu().numpy().item(), float)
+        self.assertEqual(outputs.logits.detach().cpu().numpy().shape, 
+            (TestModels.batch_size, TestModels.num_classes))
